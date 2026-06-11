@@ -1,4 +1,4 @@
-import argparse
+import json
 import signal
 import sys
 import time
@@ -14,53 +14,54 @@ def main():
     Program entrypoint.
 
     Programflow:
-    1. Opretter controllers/services
-    2. Scanner efter Airthings via BLE
-    3. Læser målinger fra sensoren
-    4. Viser måling på LCD-display
-    5. Sender måling til NestJS backend
-    6. Knap kan skifte mellem humidity, radon og temperature
+    1. Læser konfiguration fra config.json
+    2. Opretter Airthings sensor
+    3. Opretter LCD display
+    4. Opretter GPIO knap
+    5. Opretter backend klient
+    6. Læser målinger
+    7. Viser målinger på display
+    8. Sender målinger til backend
     """
 
-    parser = argparse.ArgumentParser()
+    # Læs konfiguration fra fil.
+    with open("config.json", "r") as file:
+        config = json.load(file)
 
-    parser.add_argument("serial_number", type=int)
-    parser.add_argument("sample_period", type=int)
-    parser.add_argument("backend_url")
+    serial_number = config["serialNumber"]
 
-    parser.add_argument(
-        "--api-key",
-        default="change-this-pi-key",
+    sample_period = config["samplePeriod"]
+
+    backend_url = config["backendUrl"]
+
+    api_key = config["apiKey"]
+
+    lcd_address = int(
+        config["lcdAddress"],
+        16,
     )
 
-    parser.add_argument(
-        "--lcd-address",
-        default="0x27",
-    )
+    button_pin = config["buttonPin"]
 
-    parser.add_argument(
-        "--button-pin",
-        type=int,
-        default=17,
-    )
+    print("Configuration loaded")
 
-    args = parser.parse_args()
+    # Airthings sensor.
+    wave = Wave2(serial_number)
 
-    lcd_address = int(args.lcd_address, 16)
-
-    wave = Wave2(args.serial_number)
-
+    # Backend klient.
     backend = BackendClient(
-        backend_url=args.backend_url,
-        api_key=args.api_key,
+        backend_url=backend_url,
+        api_key=api_key,
     )
 
+    # LCD display.
     display = DisplayController(
         address=lcd_address,
     )
 
+    # GPIO knap.
     button = ButtonController(
-        gpio_pin=args.button_pin,
+        gpio_pin=button_pin,
         display_controller=display,
     )
 
@@ -69,22 +70,36 @@ def main():
         Lukker forbindelser pænt ved CTRL+C.
         """
 
+        print("\nStopping Smart Air...")
+
         wave.disconnect()
+
         display.close()
+
         sys.exit(0)
 
     signal.signal(signal.SIGINT, handle_exit)
 
+    print("Smart Air started")
+    print(f"Serial Number: {serial_number}")
+    print(f"Backend URL: {backend_url}")
+    print(f"Sample Period: {sample_period} seconds")
+
     while True:
         try:
+            # Opret forbindelse til Airthings.
             wave.connect(retries=3)
 
+            # Læs målinger.
             values = wave.read()
 
+            # Udskriv målinger i terminal.
             print(values)
 
+            # Opdater LCD display.
             display.update_values(values)
 
+            # Send til NestJS backend.
             backend.send_measurement(values)
 
         except Exception as e:
@@ -93,7 +108,8 @@ def main():
         finally:
             wave.disconnect()
 
-        time.sleep(args.sample_period)
+        # Vent til næste måling.
+        time.sleep(sample_period)
 
 
 if __name__ == "__main__":
