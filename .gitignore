@@ -1,5 +1,11 @@
+ HEAD
 ﻿################################################################################
 # This .gitignore file was automatically created by Microsoft(R) Visual Studio.
 ################################################################################
 
 /.vs
+=======
+
+backend/dist/
+backend/node_modules/
+ 7155b523 (chore: remove unused measurement card screen)
