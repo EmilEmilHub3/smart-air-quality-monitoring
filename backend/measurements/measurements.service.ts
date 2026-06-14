@@ -5,10 +5,16 @@ import { Repository } from 'typeorm';
 import { CreateMeasurementDto } from './dto/create-measurement.dto';
 import { Measurement } from './measurement.entity';
 import { MeasurementsGateway } from './measurements.gateway';
+import { MeasurementsStreamService } from './measurements-stream.service';
 import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class MeasurementsService {
+
+  /**
+   * Redis cache-key for den seneste måling.
+   * Anvendes af Cache-Aside pattern på /measurements/latest.
+   */
   private readonly latestMeasurementCacheKey = 'measurements:latest';
 
   constructor(
@@ -19,22 +25,34 @@ export class MeasurementsService {
 
     private readonly redisService: RedisService,
 
+    private readonly measurementsStreamService: MeasurementsStreamService,
+
     private readonly config: ConfigService,
   ) {}
 
+  /**
+   * Opretter en ny måling.
+   *
+   * Målingen gemmes i MySQL, cachen invalides,
+   * målingen sendes til WebSocket-klienter og der
+   * publiceres en event til Redis Stream.
+   */
   async create(dto: CreateMeasurementDto) {
     const measurement = this.measurements.create(dto);
     const saved = await this.measurements.save(measurement);
 
-    // Når en ny måling oprettes, sletter vi cachen.
-    // Det gør vi fordi den gamle cached measurement ikke længere er den nyeste.
     await this.deleteLatestMeasurementCache();
 
     this.gateway.sendNewMeasurement(saved);
 
+    await this.measurementsStreamService.addMeasurementCreatedEvent(saved);
+
     return saved;
   }
 
+  /**
+   * Returnerer de 100 seneste målinger.
+   */
   findAll() {
     return this.measurements.find({
       order: { createdAt: 'DESC' },
@@ -42,21 +60,25 @@ export class MeasurementsService {
     });
   }
 
+  /**
+   * Returnerer den seneste måling ved hjælp af
+   * Cache-Aside pattern.
+   *
+   * Data hentes først fra Redis. Ved cache miss
+   * hentes målingen fra MySQL og gemmes efterfølgende i Redis.
+   */
   async findLatest() {
     const redis = this.redisService.getClient();
 
-    // 1. Først prøver vi at hente den nyeste måling fra Redis.
     const cachedMeasurement = await redis.get(this.latestMeasurementCacheKey);
 
     if (cachedMeasurement) {
-      // Cache hit: data fandtes i Redis, så databasen skal ikke kaldes.
       return {
         source: 'redis-cache',
         data: JSON.parse(cachedMeasurement),
       };
     }
 
-    // Cache miss: data fandtes ikke i Redis, så vi henter fra MySQL.
     const latest = await this.measurements.findOne({
       where: {},
       order: { createdAt: 'DESC' },
@@ -66,7 +88,6 @@ export class MeasurementsService {
       throw new NotFoundException('No measurements found');
     }
 
-    // 2. Når data er hentet fra MySQL, gemmes det i Redis.
     await this.saveLatestMeasurementInCache(latest);
 
     return {
@@ -75,15 +96,29 @@ export class MeasurementsService {
     };
   }
 
+  /**
+   * Returnerer de seneste events fra Redis Stream.
+   * Anvendes til demonstration af event-baseret arkitektur.
+   */
+  async findLatestStreamEvents() {
+    return this.measurementsStreamService.readLatestEvents(10);
+  }
+
+  /**
+   * Sletter alle målinger og invaliderer den tilhørende cache.
+   */
   async deleteAll() {
     await this.measurements.clear();
 
-    // Når alle målinger slettes, skal Redis-cachen også slettes.
     await this.deleteLatestMeasurementCache();
 
     return { deleted: true };
   }
 
+  /**
+   * Gemmer den seneste måling i Redis med en TTL,
+   * så cachen automatisk udløber efter et bestemt tidsrum.
+   */
   private async saveLatestMeasurementInCache(measurement: Measurement) {
     const redis = this.redisService.getClient();
 
@@ -91,9 +126,6 @@ export class MeasurementsService {
       this.config.get<string>('MEASUREMENTS_CACHE_TTL_SECONDS', '60'),
     );
 
-    // SET gemmer data i Redis.
-    // EX betyder expiration time i sekunder.
-    // Efter ttlSeconds slettes værdien automatisk fra Redis.
     await redis.set(
       this.latestMeasurementCacheKey,
       JSON.stringify(measurement),
@@ -102,10 +134,13 @@ export class MeasurementsService {
     );
   }
 
+  /**
+   * Fjerner den cached version af den seneste måling.
+   * Kaldes når nye målinger oprettes eller data ændres.
+   */
   private async deleteLatestMeasurementCache() {
     const redis = this.redisService.getClient();
 
-    // DEL fjerner cache-key fra Redis.
     await redis.del(this.latestMeasurementCacheKey);
   }
 }

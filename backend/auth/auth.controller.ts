@@ -8,6 +8,10 @@ import { LoginDto } from './dto/login.dto';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  /**
+   * Autentificerer brugeren og returnerer et JWT access token
+   * ved succesfuldt login.
+   */
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto.email, dto.password);
