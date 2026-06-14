@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { RedisModule } from './redis/redis.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
+import { RabbitMqModule } from './rabbitmq/rabbitmq.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { MonitoringModule } from './monitoring/monitoring.module';
     AuthModule,
     MeasurementsModule,
     MonitoringModule,
+    RabbitMqModule,
   ],
 })
 export class AppModule {}

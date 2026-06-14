@@ -7,6 +7,7 @@ import { Measurement } from './measurement.entity';
 import { MeasurementsGateway } from './measurements.gateway';
 import { MeasurementsStreamService } from './measurements-stream.service';
 import { RedisService } from '../redis/redis.service';
+import { RabbitMqService } from '../rabbitmq/rabbitmq.service';
 
 @Injectable()
 export class MeasurementsService {
@@ -27,6 +28,8 @@ export class MeasurementsService {
 
     private readonly measurementsStreamService: MeasurementsStreamService,
 
+    private readonly rabbitMqService: RabbitMqService,
+
     private readonly config: ConfigService,
   ) {}
 
@@ -34,8 +37,9 @@ export class MeasurementsService {
    * Opretter en ny måling.
    *
    * Målingen gemmes i MySQL, cachen invalides,
-   * målingen sendes til WebSocket-klienter og der
-   * publiceres en event til Redis Stream.
+   * målingen sendes til WebSocket-klienter,
+   * der publiceres en event til Redis Stream,
+   * og der publiceres en besked til RabbitMQ.
    */
   async create(dto: CreateMeasurementDto) {
     const measurement = this.measurements.create(dto);
@@ -46,6 +50,8 @@ export class MeasurementsService {
     this.gateway.sendNewMeasurement(saved);
 
     await this.measurementsStreamService.addMeasurementCreatedEvent(saved);
+
+    await this.rabbitMqService.publishMeasurementCreated(saved);
 
     return saved;
   }

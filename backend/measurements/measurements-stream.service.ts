@@ -4,7 +4,7 @@ import { Measurement } from './measurement.entity';
 
 @Injectable()
 export class MeasurementsStreamService {
-  private readonly streamKey = 'measurements:stream';
+  private readonly streamKey = 'measurement-stream';
 
   // Redis Stream må cirka kun gemme de nyeste 100 events.
   // Det begrænser memory-forbruget, så streamen ikke vokser uendeligt.

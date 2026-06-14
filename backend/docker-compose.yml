@@ -20,6 +20,14 @@ services:
     ports:
       - "6379:6379"
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: smartair_rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
   prometheus:
     image: prom/prometheus
     container_name: smartair_prometheus
