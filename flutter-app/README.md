@@ -1,17 +1,63 @@
-# smart_air_app
+# Smart Air Flutter App
 
-A new Flutter project.
+Flutter mobilapplikation til Smart Air Quality Monitoring System.
 
-## Getting Started
+Applikationen giver brugeren mulighed for at overvåge luftkvalitet, se historiske målinger og modtage realtidsopdateringer fra backend.
 
-This project is a starting point for a Flutter application.
+## Teknologier
 
-A few resources to get you started if this is your first Flutter project:
+- Flutter
+- Dart
+- REST API
+- WebSocket
+- JWT Authentication
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Funktioner
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- Login
+- Visning af seneste måling
+- Historik over målinger
+- Realtidsopdateringer via WebSocket
+- JWT baseret autentificering
+
+## Start projektet
+
+Installer dependencies:
+
+```bash
+flutter pub get
+```
+
+Start applikationen:
+
+```bash
+flutter run
+```
+
+## Kommunikation
+
+### REST API
+
+Bruges til:
+
+- Login
+- Hent historik
+- Hent seneste måling
+
+### WebSocket
+
+Bruges til:
+
+- Realtidsopdateringer af nye målinger
+
+## Arkitektur
+
+```text
+Flutter App
+     │
+     ▼
+NestJS Backend
+     │
+ ├─ REST API
+ └─ WebSocket
+```
